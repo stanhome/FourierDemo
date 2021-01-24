@@ -1,0 +1,115 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Fourier
+
+Texture2D<float4> originalImg;
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> RTFourierSpectrum;
+RWTexture2D<float4> RTFourierPhase;
+
+int renderTextureSize = 1024;
+
+static const float PI = 3.14159265f;
+
+//////////////////////////////////////////////////////////////
+// Complex Number
+
+struct Complex
+{
+	float real;
+	float imaginary;
+};
+
+Complex newZeroComplex() {
+	Complex ret;
+	ret.real = 0;
+	ret.imaginary = 0;
+
+	return ret;
+}
+
+Complex createComplex(float real, float imaginary) {
+	Complex c;
+	c.real = real;
+	c.imaginary = imaginary;
+
+	return c;
+}
+
+Complex add(Complex lhs, Complex rhs) {
+	lhs.real += rhs.real;
+	lhs.imaginary += rhs.imaginary;
+
+	return lhs;
+}
+
+Complex sub(Complex lhs, Complex rhs) {
+	lhs.real -= rhs.real;
+	lhs.imaginary -= rhs.imaginary;
+
+	return lhs;
+}
+
+Complex multiply(Complex lhs, Complex rhs) {
+	float newReal = lhs.real * rhs.real - lhs.imaginary * rhs.imaginary;
+	lhs.imaginary =  lhs.real * rhs.imaginary + lhs.imaginary * rhs.real;
+	lhs.real = newReal;
+
+	return lhs;
+}
+
+Complex multiplyFloat(Complex lhs, float rhs) {
+	lhs.real *= rhs;
+	lhs.imaginary *= rhs;
+
+	return lhs;
+}
+
+// Euler Function: e^(ix) = cosx + isinx
+Complex euler(float x) {
+	Complex ret;
+	ret.real = cos(x);
+	ret.imaginary = sin(x);
+
+	return ret;
+}
+
+int2 coordinateToCenter(int x, int y) {
+	x -= renderTextureSize / 2;
+	y -= renderTextureSize / 2;
+
+	return int2(x, y);
+}
+
+
+[numthreads(16,16,1)]
+void Fourier(uint3 id : SV_DispatchThreadID)
+{
+	float exponentFlag = -1 * 2 * PI / renderTextureSize;
+	int2 coord = id.xy; // or use coordinateToCenter to move image center.
+
+	Complex sumRow = newZeroComplex(); // 用作积分结果
+
+	for (int i = 0; i < renderTextureSize; ++i) {
+		Complex cU = euler(exponentFlag * i * coord.x); // 计算当前行对应列的首位像素的欧拉数, 下面列积分后要乘这个数
+
+		Complex sumColumn = newZeroComplex(); // for column integration
+		for (int j = 0; j < renderTextureSize; ++j) {
+			Complex cV = euler(exponentFlag * j * coord.y); // 计算当前像素的欧拉数 - 2 π * v * y / Len
+			cV = multiplyFloat(cV, originalImg[int2(i, j)].r); // 欧拉数乘以当前的振幅, 对纹理采样得到的结果就是振幅
+			sumColumn = add(sumColumn, cV); // integration
+		}
+
+		sumRow = add(sumRow, multiply(sumColumn, cU)); // 列积分的结果去乘开始那个行上那个欧拉公式算出来的复数, 然后积分
+	}
+
+	// 振幅
+	float amplitude = sqrt(sumRow.real * sumRow.real + sumRow.imaginary * sumRow.imaginary);
+	// 相位
+	float phase = atan2(sumRow.imaginary, sumRow.real);
+
+	RTFourierSpectrum[id.xy] = amplitude / renderTextureSize; // 除以renderTextureSize是为了好看
+	RTFourierPhase[id.xy] = phase;
+}
