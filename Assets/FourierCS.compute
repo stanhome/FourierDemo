@@ -85,7 +85,6 @@ int2 coordinateToCenter(int x, int y) {
 	return int2(x, y);
 }
 
-
 [numthreads(16,16,1)]
 void Fourier(uint3 id : SV_DispatchThreadID)
 {
@@ -124,8 +123,7 @@ void FourierRevert(uint3 id: SV_DispatchThreadID) {
 	//NOTE: + 1 is Fourier revert
 	float exponentFlag = +1 * 2 * PI / renderTextureSize;
 
-	int2 coord = id.xy; // or use coordinateToCenter to move image center.
-	//int2 coord = coordinateToCenter(id.x, id.y); // or use coordinateToCenter to move image center.
+	int2 coord = id.xy; 
 
 	Complex sumRow = newZeroComplex(); 
 	for (int i = 0; i < renderTextureSize; ++i) {
