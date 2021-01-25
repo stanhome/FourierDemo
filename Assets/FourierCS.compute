@@ -6,8 +6,7 @@ Texture2D<float4> originalImg;
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWTexture2D<float4> RTFourierSpectrum;
-RWTexture2D<float4> RTFourierPhase;
+RWTexture2D<float4> RTFourierSpectrumPhase;
 
 int renderTextureSize = 1024;
 
@@ -88,12 +87,14 @@ int2 coordinateToCenter(int x, int y) {
 void Fourier(uint3 id : SV_DispatchThreadID)
 {
 	float exponentFlag = -1 * 2 * PI / renderTextureSize;
-	int2 coord = id.xy; // or use coordinateToCenter to move image center.
+	//int2 coord = id.xy; // or use coordinateToCenter to move image center.
+	int2 coord = coordinateToCenter(id.x, id.y); // or use coordinateToCenter to move image center.
 
 	Complex sumRow = newZeroComplex(); // 用作积分结果
 
 	for (int i = 0; i < renderTextureSize; ++i) {
-		Complex cU = euler(exponentFlag * i * coord.x); // 计算当前行对应列的首位像素的欧拉数, 下面列积分后要乘这个数
+		// 以行号为参数计算改行的欧拉数, 下面的该行中所有的列元素积分后要乘这个欧拉数
+		Complex cU = euler(exponentFlag * i * coord.x); 
 
 		Complex sumColumn = newZeroComplex(); // for column integration
 		for (int j = 0; j < renderTextureSize; ++j) {
@@ -110,6 +111,6 @@ void Fourier(uint3 id : SV_DispatchThreadID)
 	// 相位
 	float phase = atan2(sumRow.imaginary, sumRow.real);
 
-	RTFourierSpectrum[id.xy] = amplitude / renderTextureSize; // 除以renderTextureSize是为了好看
-	RTFourierPhase[id.xy] = phase;
+	float4 spectrumPhaseRet = float4(amplitude / renderTextureSize, phase, 0, 1); // 除以renderTextureSize是为了好看
+	RTFourierSpectrumPhase[id.xy] = spectrumPhaseRet;
 }

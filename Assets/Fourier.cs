@@ -12,8 +12,7 @@ public class Fourier : MonoBehaviour
 	private int CS_GRID;
 
 
-	RenderTexture rtFourierSpectrum;
-	RenderTexture rtFourierPhase;
+	RenderTexture rtFourierSpectrumPhase;
 
 	RenderTexture rtFourierRevert;
 
@@ -27,8 +26,7 @@ public class Fourier : MonoBehaviour
     {
 		CS_GRID = renderTextureSize / 16;
 
-		rtFourierSpectrum = createRT(renderTextureSize);
-		rtFourierPhase = createRT(renderTextureSize);
+		rtFourierSpectrumPhase = createRT(renderTextureSize);
 		rtFourierRevert = createRT(renderTextureSize);
 
 		initMaterial();
@@ -48,8 +46,7 @@ public class Fourier : MonoBehaviour
 		cs.SetInt("renderTextureSize", renderTextureSize);
 
 		cs.SetTexture(kernel, "originalImg", originalImage);
-		cs.SetTexture(kernel, "RTFourierSpectrum", rtFourierSpectrum);
-		cs.SetTexture(kernel, "RTFourierPhase", rtFourierPhase);
+		cs.SetTexture(kernel, "RTFourierSpectrumPhase", rtFourierSpectrumPhase);
 
 		cs.Dispatch(0, CS_GRID, CS_GRID, 1);
 		Debug.Log("doFourierTransform done.");
@@ -57,15 +54,13 @@ public class Fourier : MonoBehaviour
 
 
 	private void initMaterial() {
-		rendererFourierSpectrum?.material.SetTexture("_MainTex", rtFourierSpectrum);
-		rendererFourierPhase?.material.SetTexture("_MainTex", rtFourierPhase);
+		rendererFourierSpectrum?.material.SetTexture("_MainTex", rtFourierSpectrumPhase);
+		rendererFourierPhase?.material.SetTexture("_MainTex", rtFourierSpectrumPhase);
 
 		if (rendererFourierRevert != null)
 		{
 			rendererFourierRevert.material.SetTexture("_MainTex", rtFourierRevert);
 		}
-
-
 	}
 
 	private RenderTexture createRT(int rtSize) {
