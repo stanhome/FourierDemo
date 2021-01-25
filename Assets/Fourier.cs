@@ -6,15 +6,17 @@ public class Fourier : MonoBehaviour
 {
 	public ComputeShader cs;
 
-	public Texture2D originalImage;
 	[Range(32, 1024)]
 	public int renderTextureSize = 1024;
 	private int CS_GRID;
 
+	private Texture _originalImage;
 
-	RenderTexture rtFourierSpectrumPhase;
+	RenderTexture _rtFourierSpectrumPhase;
+	RenderTexture _rtFourierRevert;
 
-	RenderTexture rtFourierRevert;
+	//input
+	public MeshRenderer rendererOriginalRenderer = null;
 
 	// output
 	public MeshRenderer rendererFourierSpectrum = null;
@@ -26,17 +28,12 @@ public class Fourier : MonoBehaviour
     {
 		CS_GRID = renderTextureSize / 16;
 
-		rtFourierSpectrumPhase = createRT(renderTextureSize);
-		rtFourierRevert = createRT(renderTextureSize);
+		_rtFourierSpectrumPhase = createRT(renderTextureSize);
+		_rtFourierRevert = createRT(renderTextureSize);
 
 		initMaterial();
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 
 	public void doFourierTransform() {
 		Debug.Log("doFourierTransform begin...");
@@ -45,21 +42,37 @@ public class Fourier : MonoBehaviour
 
 		cs.SetInt("renderTextureSize", renderTextureSize);
 
-		cs.SetTexture(kernel, "originalImg", originalImage);
-		cs.SetTexture(kernel, "RTFourierSpectrumPhase", rtFourierSpectrumPhase);
+		cs.SetTexture(kernel, "originalImg", _originalImage);
+		cs.SetTexture(kernel, "RTFourierSpectrumPhase", _rtFourierSpectrumPhase);
 
-		cs.Dispatch(0, CS_GRID, CS_GRID, 1);
+		cs.Dispatch(kernel, CS_GRID, CS_GRID, 1);
 		Debug.Log("doFourierTransform done.");
+	}
+
+	public void doFourierTransformRevert() {
+		Debug.Log("doFourierTransformRevert begin ...");
+
+		int kernel = cs.FindKernel("FourierRevert");
+
+		cs.SetInt("renderTextureSize", renderTextureSize);
+
+		cs.SetTexture(kernel, "RTFourierSpectrumPhase", _rtFourierSpectrumPhase);
+		cs.SetTexture(kernel, "RTFourierRevert", _rtFourierRevert);
+
+		cs.Dispatch(kernel, CS_GRID, CS_GRID, 1);
+		Debug.Log("doFourierTransformRevert done.");
 	}
 
 
 	private void initMaterial() {
-		rendererFourierSpectrum?.material.SetTexture("_MainTex", rtFourierSpectrumPhase);
-		rendererFourierPhase?.material.SetTexture("_MainTex", rtFourierSpectrumPhase);
+		_originalImage = rendererOriginalRenderer.material.GetTexture("_MainTex");
+
+		rendererFourierSpectrum?.material.SetTexture("_MainTex", _rtFourierSpectrumPhase);
+		rendererFourierPhase?.material.SetTexture("_MainTex", _rtFourierSpectrumPhase);
 
 		if (rendererFourierRevert != null)
 		{
-			rendererFourierRevert.material.SetTexture("_MainTex", rtFourierRevert);
+			rendererFourierRevert.material.SetTexture("_MainTex", _rtFourierRevert);
 		}
 	}
 

@@ -1,5 +1,6 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel Fourier
+#pragma kernel FourierRevert
 
 Texture2D<float4> originalImg;
 
@@ -7,6 +8,8 @@ Texture2D<float4> originalImg;
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> RTFourierSpectrumPhase;
+
+RWTexture2D<float4> RTFourierRevert;
 
 int renderTextureSize = 1024;
 
@@ -111,6 +114,44 @@ void Fourier(uint3 id : SV_DispatchThreadID)
 	// 相位
 	float phase = atan2(sumRow.imaginary, sumRow.real);
 
-	float4 spectrumPhaseRet = float4(amplitude / renderTextureSize, phase, 0, 1); // 除以renderTextureSize是为了好看
+	// 除1个 renderTextureSize 是为了可视化好看，应该除 (renderTextureSize * renderTextureSize)
+	float4 spectrumPhaseRet = float4(amplitude / (renderTextureSize), phase, 0, 1); 
 	RTFourierSpectrumPhase[id.xy] = spectrumPhaseRet;
+}
+
+[numthreads(16,16,1)]
+void FourierRevert(uint3 id: SV_DispatchThreadID) {
+	//NOTE: + 1 is Fourier revert
+	float exponentFlag = +1 * 2 * PI / renderTextureSize;
+
+	int2 coord = id.xy; // or use coordinateToCenter to move image center.
+	//int2 coord = coordinateToCenter(id.x, id.y); // or use coordinateToCenter to move image center.
+
+	Complex sumRow = newZeroComplex(); 
+	for (int i = 0; i < renderTextureSize; ++i) {
+		Complex cU = euler(exponentFlag * i * coord.x); 
+
+		Complex sumColumn = newZeroComplex(); // for column integration
+		for (int j = 0; j < renderTextureSize; ++j) {
+			Complex cV = euler(exponentFlag * j * coord.y); // 计算当前像素的欧拉数 2 π * v * y / Len
+
+			Complex sampleComplex;
+			float4 spectrumPhase = RTFourierSpectrumPhase[int2(i, j)];
+			float amplitude = spectrumPhase.r;
+			float phase = spectrumPhase.g;
+
+			sampleComplex.real = amplitude * cos(phase); //实部: A*cos(Phase)
+			sampleComplex.imaginary = amplitude * sin(phase); // 虚部: A*sin(Phase)
+
+			cV = multiply(cV, sampleComplex); // 和该位置的欧拉数相乘
+			sumColumn = add(sumColumn, cV); // integration
+		}
+
+		sumRow = add(sumRow, multiply(sumColumn, cU)); // 列积分的结果去乘开始那个行上那个欧拉公式算出来的复数, 然后积分
+	}
+
+	// 求模长 就是求振幅
+	float length = sqrt(sumRow.real * sumRow.real + sumRow.imaginary * sumRow.imaginary);
+	// 这里实际上是应该是 除(TextureSize*TextureSize), 但是为了频域好看,把一个TextureSize 移到了正傅里叶变换里
+	RTFourierRevert[id.xy] = length / (renderTextureSize);
 }
